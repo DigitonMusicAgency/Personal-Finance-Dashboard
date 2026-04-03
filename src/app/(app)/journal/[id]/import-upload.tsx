@@ -166,7 +166,7 @@ export default function ImportUpload({
                 nebo klikněte pro výběr
               </p>
               <p className="mt-3 text-xs text-[var(--muted-foreground)]">
-                Podporované formáty: Wise CSV, Air Bank PDF, Wise PDF
+                Podporované formáty: Wise CSV, Air Bank PDF, Fio PDF, a další bankovní PDF
               </p>
               <input
                 ref={inputRef}

@@ -3,21 +3,22 @@ import type { ParsedTransaction } from "./wise-csv";
 const GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
-const EXTRACTION_PROMPT = `You are parsing a Czech Air Bank (Air Bank a.s.) bank statement PDF.
+const EXTRACTION_PROMPT = `You are parsing a Czech bank statement PDF. The bank may be Air Bank, Fio banka, ČSOB, Komerční banka, Raiffeisenbank, or any other Czech bank.
 
 Extract every transaction from the statement and return a JSON array. Each element must have these fields:
 
-- "date": the posting date (datum zaúčtování) in YYYY-MM-DD format
+- "date": the posting date (datum zaúčtování / datum) in YYYY-MM-DD format
 - "amount": a signed number (negative for expenses/outgoing, positive for income/incoming)
-- "currency": always "CZK"
+- "currency": the currency code (e.g. "CZK", "EUR", "USD"). Default to "CZK" if not specified.
 - "type": "income" if amount > 0, "expense" if amount < 0
-- "description": the transaction description / note
+- "description": the transaction description / note / message for recipient
 - "counterparty": see rules below
-- "variable_symbol": if a variable symbol (VS or Variabilní symbol) is present in the details, extract it as a string; otherwise null
+- "counterparty_account": the counterparty's bank account number if available (e.g. "1234567890/0800" or IBAN), otherwise null
+- "variable_symbol": if a variable symbol (VS or Variabilní symbol) is present, extract it as a string; otherwise null
 
 Counterparty rules:
-- For card payments (kartou, karetní transakce): the counterparty is the MERCHANT NAME from the Details field, NOT the cardholder name.
-- For transfers (převod, příchozí platba, odchozí platba): the counterparty is the Name (Název / Jméno) field of the sender or recipient.
+- For card payments (kartou, karetní transakce): the counterparty is the MERCHANT NAME, NOT the cardholder name.
+- For transfers (převod, příchozí platba, odchozí platba): the counterparty is the Name (Název / Jméno) of the sender or recipient.
 - If no clear counterparty can be identified, use the description.
 
 Respond with ONLY a valid JSON array. No markdown fencing, no explanation, no extra text. Just the raw JSON array.`;
@@ -29,6 +30,7 @@ interface GeminiTransaction {
   type: "income" | "expense";
   description: string;
   counterparty: string;
+  counterparty_account: string | null;
   variable_symbol: string | null;
 }
 

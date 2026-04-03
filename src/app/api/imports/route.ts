@@ -4,10 +4,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseWiseCsv } from "@/lib/parsers/wise-csv";
 import { parseAirBankPdfFromBytes } from "@/lib/parsers/airbank-pdf";
 
+// Allow up to 60s for PDF processing via Gemini
+export const maxDuration = 60;
+
 /**
  * Detect source type from filename.
- * For PDFs: "airbank_pdf" if filename contains "airbank" or "Air", else "wise_pdf".
- * For CSVs: "wise_csv".
  */
 function detectSourceType(
   fileName: string,
@@ -15,10 +16,17 @@ function detectSourceType(
 ): string {
   if (ext === "pdf") {
     const lower = fileName.toLowerCase();
-    if (lower.includes("airbank") || fileName.includes("Air")) {
+    if (lower.includes("airbank") || lower.includes("air bank") || lower.includes("air_")) {
       return "airbank_pdf";
     }
-    return "wise_pdf";
+    if (lower.includes("fio")) {
+      return "fio_pdf";
+    }
+    if (lower.includes("wise")) {
+      return "wise_pdf";
+    }
+    // Default: generic bank PDF (all go through Gemini)
+    return "bank_pdf";
   }
   return "wise_csv";
 }
@@ -77,7 +85,7 @@ export async function POST(request: NextRequest) {
     let transactions;
 
     if (ext === "pdf") {
-      // PDF import via Gemini
+      // PDF import via Gemini (works for any Czech bank)
       const geminiApiKey = process.env.GEMINI_API_KEY;
       if (!geminiApiKey) {
         return NextResponse.json(
@@ -86,12 +94,29 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Check file size (Vercel limit ~4.5MB for serverless)
+      if (file.size > 4 * 1024 * 1024) {
+        return NextResponse.json(
+          { error: "Soubor je příliš velký (max 4 MB). Rozdělte výpis na menší části." },
+          { status: 400 }
+        );
+      }
+
       // Read PDF as base64
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const pdfBase64 = buffer.toString("base64");
 
-      transactions = await parseAirBankPdfFromBytes(pdfBase64, geminiApiKey);
+      try {
+        transactions = await parseAirBankPdfFromBytes(pdfBase64, geminiApiKey);
+      } catch (pdfErr) {
+        console.error("PDF parsing error:", pdfErr);
+        const msg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
+        return NextResponse.json(
+          { error: `Chyba při zpracování PDF: ${msg.slice(0, 200)}` },
+          { status: 500 }
+        );
+      }
     } else if (ext === "csv") {
       // CSV import (Wise)
       const content = await file.text();
