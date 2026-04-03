@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import type { JournalType } from "@/lib/types";
 import { BookOpen } from "lucide-react";
 
@@ -16,21 +15,27 @@ export default function WelcomePage() {
     if (!name.trim()) return;
     setLoading(true);
 
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("journals")
-      .insert({ name: name.trim(), type })
-      .select("id")
-      .single();
+    try {
+      const res = await fetch("/api/journals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), type }),
+      });
 
-    if (error) {
-      alert("Chyba při vytváření deníku: " + error.message);
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert("Chyba při vytváření deníku: " + (data.error || "Neznámá chyba"));
+        setLoading(false);
+        return;
+      }
+
+      router.push(`/journal/${data.id}`);
+      router.refresh();
+    } catch {
+      alert("Chyba při komunikaci se serverem");
       setLoading(false);
-      return;
     }
-
-    router.push(`/journal/${data.id}`);
-    router.refresh();
   }
 
   return (

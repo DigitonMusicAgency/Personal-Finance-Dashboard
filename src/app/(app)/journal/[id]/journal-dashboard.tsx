@@ -1,10 +1,29 @@
 "use client";
 
-import { useState } from "react";
-import type { Journal, Account, Category } from "@/lib/types";
+import { useState, useEffect, useCallback } from "react";
+import type { Journal, Account, Category, Transaction } from "@/lib/types";
 import AccountManager from "./account-manager";
 import JournalSettings from "./journal-settings";
-import { LayoutDashboard, CreditCard, Settings } from "lucide-react";
+import TransactionTable from "./transaction-table";
+import TransactionForm from "./transaction-form";
+import PeriodFilterBar, {
+  type PeriodFilter,
+  getDefaultPeriod,
+  getDefaultPeriods,
+} from "./period-filter";
+import { MetricCards } from "./metric-cards";
+import DashboardCharts from "./dashboard-charts";
+import ImportUpload from "./import-upload";
+import ImportReview from "./import-review";
+import type { ParsedTransaction } from "@/lib/parsers/wise-csv";
+import {
+  LayoutDashboard,
+  CreditCard,
+  Settings,
+  Plus,
+  Upload,
+  Loader2,
+} from "lucide-react";
 
 type Tab = "dashboard" | "accounts" | "settings";
 
@@ -21,6 +40,19 @@ export default function JournalDashboard({
 }: Props) {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [accounts, setAccounts] = useState(initialAccounts);
+  const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [editingTransaction, setEditingTransaction] =
+    useState<Transaction | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Import flow state
+  const [showImportUpload, setShowImportUpload] = useState(false);
+  const [importReview, setImportReview] = useState<{
+    importId: string;
+    transactions: ParsedTransaction[];
+    fileName: string;
+    accountId: string;
+  } | null>(null);
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     {
@@ -40,6 +72,27 @@ export default function JournalDashboard({
     },
   ];
 
+  function handleNewTransaction() {
+    setEditingTransaction(null);
+    setShowTransactionForm(true);
+  }
+
+  function handleEditTransaction(tx: Transaction) {
+    setEditingTransaction(tx);
+    setShowTransactionForm(true);
+  }
+
+  function handleTransactionSaved() {
+    setShowTransactionForm(false);
+    setEditingTransaction(null);
+    setRefreshKey((k) => k + 1);
+  }
+
+  function handleCloseForm() {
+    setShowTransactionForm(false);
+    setEditingTransaction(null);
+  }
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -55,6 +108,26 @@ export default function JournalDashboard({
                 ` — ${journal.counterparty_name}`}
             </p>
           </div>
+
+          {/* Action buttons */}
+          {tab === "dashboard" && accounts.length > 0 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowImportUpload(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--accent)]"
+              >
+                <Upload className="h-4 w-4" />
+                Import
+              </button>
+              <button
+                onClick={handleNewTransaction}
+                className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600"
+              >
+                <Plus className="h-4 w-4" />
+                Přidat transakci
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -79,9 +152,13 @@ export default function JournalDashboard({
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-6">
         {tab === "dashboard" && (
-          <DashboardPlaceholder
+          <DashboardContent
             journal={journal}
-            accountCount={accounts.length}
+            accounts={accounts}
+            categories={categories}
+            onNewTransaction={handleNewTransaction}
+            onEditTransaction={handleEditTransaction}
+            refreshKey={refreshKey}
           />
         )}
         {tab === "accounts" && (
@@ -93,39 +170,176 @@ export default function JournalDashboard({
         )}
         {tab === "settings" && <JournalSettings journal={journal} />}
       </div>
+
+      {/* Transaction form modal */}
+      {showTransactionForm && (
+        <TransactionForm
+          journal={journal}
+          accounts={accounts}
+          categories={categories}
+          transaction={editingTransaction}
+          onClose={handleCloseForm}
+          onSaved={handleTransactionSaved}
+        />
+      )}
+
+      {/* Import upload modal */}
+      {showImportUpload && (
+        <ImportUpload
+          journalId={journal.id}
+          accounts={accounts}
+          onImportParsed={(data) => {
+            setShowImportUpload(false);
+            setImportReview(data as {
+              importId: string;
+              transactions: ParsedTransaction[];
+              fileName: string;
+              accountId: string;
+            });
+          }}
+          onClose={() => setShowImportUpload(false)}
+        />
+      )}
+
+      {/* Import review screen */}
+      {importReview && (
+        <ImportReview
+          journalId={journal.id}
+          accountId={importReview.accountId}
+          importId={importReview.importId}
+          transactions={importReview.transactions}
+          categories={categories}
+          fileName={importReview.fileName}
+          onConfirmed={() => {
+            setImportReview(null);
+            setRefreshKey((k) => k + 1);
+          }}
+          onCancelled={() => setImportReview(null)}
+        />
+      )}
     </div>
   );
 }
 
-function DashboardPlaceholder({
+/**
+ * Compute the "previous period" date range for comparison.
+ * E.g., if current is "this month" (Apr 2026), previous is Mar 2026.
+ */
+function getPreviousPeriod(period: PeriodFilter): PeriodFilter {
+  const start = new Date(period.startDate);
+  const end = new Date(period.endDate);
+  const durationMs = end.getTime() - start.getTime();
+
+  const prevEnd = new Date(start.getTime() - 1); // day before current start
+  const prevStart = new Date(prevEnd.getTime() - durationMs);
+
+  const fmt = (d: Date) => d.toISOString().split("T")[0];
+  return {
+    key: "previous",
+    label: "Předchozí",
+    startDate: fmt(prevStart),
+    endDate: fmt(prevEnd),
+  };
+}
+
+function DashboardContent({
   journal,
-  accountCount,
+  accounts,
+  categories,
+  onNewTransaction,
+  onEditTransaction,
+  refreshKey,
 }: {
   journal: Journal;
-  accountCount: number;
+  accounts: Account[];
+  categories: Category[];
+  onNewTransaction: () => void;
+  onEditTransaction: (tx: Transaction) => void;
+  refreshKey: number;
 }) {
+  const [period, setPeriod] = useState<PeriodFilter>(getDefaultPeriod);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch ALL transactions for this journal (we filter client-side for metrics/charts)
+  const fetchTransactions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/transactions?journal_id=${journal.id}&limit=5000`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setAllTransactions(data);
+      }
+    } catch (err) {
+      console.error("Failed to load transactions:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [journal.id]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions, refreshKey]);
+
+  if (accounts.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-[var(--border)] p-12 text-center">
+        <CreditCard className="mx-auto h-12 w-12 text-[var(--muted-foreground)]" />
+        <h3 className="mt-4 text-lg font-medium">Zatím žádné účty</h3>
+        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+          Přejděte na záložku &quot;Účty&quot; a přidejte svůj první bankovní
+          účet.
+        </p>
+      </div>
+    );
+  }
+
+  // Filter transactions by selected period
+  const filteredTransactions = allTransactions.filter(
+    (t) => t.date >= period.startDate && t.date <= period.endDate
+  );
+
+  // Previous period for comparison
+  const prevPeriod = getPreviousPeriod(period);
+  const prevTransactions = allTransactions.filter(
+    (t) => t.date >= prevPeriod.startDate && t.date <= prevPeriod.endDate
+  );
+
   return (
     <div className="space-y-6">
-      {accountCount === 0 ? (
-        <div className="rounded-xl border border-dashed border-[var(--border)] p-12 text-center">
-          <CreditCard className="mx-auto h-12 w-12 text-[var(--muted-foreground)]" />
-          <h3 className="mt-4 text-lg font-medium">Zatím žádné účty</h3>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            Přejděte na záložku &quot;Účty&quot; a přidejte svůj první bankovní
-            účet.
-          </p>
+      {/* Period filter */}
+      <PeriodFilterBar value={period} onChange={setPeriod} />
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-[var(--muted-foreground)]" />
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-[var(--border)] p-12 text-center">
-          <LayoutDashboard className="mx-auto h-12 w-12 text-[var(--muted-foreground)]" />
-          <h3 className="mt-4 text-lg font-medium">
-            Dashboard bude zde
-          </h3>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            Metriky, grafy a tabulka transakcí — přijdou ve Sprint 2 a 3.
-          </p>
-        </div>
+        <>
+          {/* Metric cards */}
+          <MetricCards
+            transactions={filteredTransactions}
+            previousTransactions={prevTransactions}
+          />
+
+          {/* Charts */}
+          <DashboardCharts
+            transactions={filteredTransactions}
+            categories={categories}
+          />
+        </>
       )}
+
+      {/* Transaction table */}
+      <TransactionTable
+        journalId={journal.id}
+        accounts={accounts}
+        categories={categories}
+        onEditTransaction={onEditTransaction}
+        refreshKey={refreshKey}
+      />
     </div>
   );
 }

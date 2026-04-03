@@ -55,28 +55,35 @@ export default function Sidebar() {
     if (!newName.trim()) return;
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("journals")
-      .insert({
-        name: newName.trim(),
-        type: newType,
-        sort_order: journals.length,
-      })
-      .select("id")
-      .single();
+    try {
+      const res = await fetch("/api/journals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newName.trim(),
+          type: newType,
+          sort_order: journals.length,
+        }),
+      });
 
-    if (error) {
-      alert("Chyba: " + error.message);
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert("Chyba: " + (data.error || "Neznámá chyba"));
+        setLoading(false);
+        return;
+      }
+
+      setNewName("");
+      setNewType("standard");
+      setShowNewForm(false);
       setLoading(false);
-      return;
+      await loadJournals();
+      router.push(`/journal/${data.id}`);
+    } catch {
+      alert("Chyba při komunikaci se serverem");
+      setLoading(false);
     }
-
-    setNewName("");
-    setNewType("standard");
-    setShowNewForm(false);
-    setLoading(false);
-    await loadJournals();
-    router.push(`/journal/${data.id}`);
   }
 
   async function handleRename(id: string) {
