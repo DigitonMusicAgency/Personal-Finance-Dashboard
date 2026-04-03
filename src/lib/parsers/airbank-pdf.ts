@@ -71,14 +71,26 @@ export async function parseAirBankPdf(
   }
 
   // Strip any accidental markdown fencing
-  const cleaned = rawText
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```\s*$/i, "")
-    .trim();
+  // Extract JSON array from response — Gemini 2.5 may include thinking blocks,
+  // markdown fencing, or other text around the actual JSON
+  let jsonStr = rawText;
+
+  // Try to find a JSON array between ```json ... ``` fencing
+  const fencedMatch = rawText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/i);
+  if (fencedMatch) {
+    jsonStr = fencedMatch[1];
+  } else {
+    // Try to find the first [ ... ] block in the response
+    const bracketStart = rawText.indexOf("[");
+    const bracketEnd = rawText.lastIndexOf("]");
+    if (bracketStart !== -1 && bracketEnd > bracketStart) {
+      jsonStr = rawText.slice(bracketStart, bracketEnd + 1);
+    }
+  }
 
   let parsed: GeminiTransaction[];
   try {
-    parsed = JSON.parse(cleaned);
+    parsed = JSON.parse(jsonStr.trim());
   } catch {
     throw new Error(
       `Gemini returned invalid JSON. Raw response:\n${rawText.slice(0, 1000)}`
@@ -157,14 +169,26 @@ export async function parseAirBankPdfFromBytes(
     );
   }
 
-  const cleaned = rawText
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```\s*$/i, "")
-    .trim();
+  // Extract JSON array from response — Gemini 2.5 may include thinking blocks,
+  // markdown fencing, or other text around the actual JSON
+  let jsonStr = rawText;
+
+  // Try to find a JSON array between ```json ... ``` fencing
+  const fencedMatch = rawText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/i);
+  if (fencedMatch) {
+    jsonStr = fencedMatch[1];
+  } else {
+    // Try to find the first [ ... ] block in the response
+    const bracketStart = rawText.indexOf("[");
+    const bracketEnd = rawText.lastIndexOf("]");
+    if (bracketStart !== -1 && bracketEnd > bracketStart) {
+      jsonStr = rawText.slice(bracketStart, bracketEnd + 1);
+    }
+  }
 
   let parsed: GeminiTransaction[];
   try {
-    parsed = JSON.parse(cleaned);
+    parsed = JSON.parse(jsonStr.trim());
   } catch {
     throw new Error(
       `Gemini returned invalid JSON. Raw response:\n${rawText.slice(0, 1000)}`
