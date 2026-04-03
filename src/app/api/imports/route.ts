@@ -2,6 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseWiseCsv } from "@/lib/parsers/wise-csv";
+import { parseAirBankPdfFromBytes } from "@/lib/parsers/airbank-pdf";
+
+/**
+ * Detect source type from filename.
+ * For PDFs: "airbank_pdf" if filename contains "airbank" or "Air", else "wise_pdf".
+ * For CSVs: "wise_csv".
+ */
+function detectSourceType(
+  fileName: string,
+  ext: string
+): string {
+  if (ext === "pdf") {
+    const lower = fileName.toLowerCase();
+    if (lower.includes("airbank") || fileName.includes("Air")) {
+      return "airbank_pdf";
+    }
+    return "wise_pdf";
+  }
+  return "wise_csv";
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,25 +71,37 @@ export async function POST(request: NextRequest) {
 
     // 4. Detect file type and parse
     const fileName = file.name;
-    const ext = fileName.split(".").pop()?.toLowerCase();
+    const ext = fileName.split(".").pop()?.toLowerCase() || "";
+    const sourceType = detectSourceType(fileName, ext);
+
+    let transactions;
 
     if (ext === "pdf") {
-      return NextResponse.json(
-        { error: "PDF import bude dostupný brzy" },
-        { status: 400 }
-      );
-    }
+      // PDF import via Gemini
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+      if (!geminiApiKey) {
+        return NextResponse.json(
+          { error: "Gemini API klíč není nakonfigurován na serveru" },
+          { status: 500 }
+        );
+      }
 
-    if (ext !== "csv") {
+      // Read PDF as base64
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const pdfBase64 = buffer.toString("base64");
+
+      transactions = await parseAirBankPdfFromBytes(pdfBase64, geminiApiKey);
+    } else if (ext === "csv") {
+      // CSV import (Wise)
+      const content = await file.text();
+      transactions = parseWiseCsv(content);
+    } else {
       return NextResponse.json(
         { error: "Nepodporovaný formát souboru. Použijte CSV nebo PDF." },
         { status: 400 }
       );
     }
-
-    // 5. Read and parse CSV
-    const content = await file.text();
-    const transactions = parseWiseCsv(content);
 
     if (transactions.length === 0) {
       return NextResponse.json(
@@ -86,7 +118,7 @@ export async function POST(request: NextRequest) {
         account_id: accountId,
         file_name: fileName,
         file_path: `imports/${journalId}/${fileName}`,
-        source_type: "wise_csv",
+        source_type: sourceType,
         status: "review",
         transaction_count: transactions.length,
       })

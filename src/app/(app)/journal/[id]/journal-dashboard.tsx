@@ -15,17 +15,20 @@ import { MetricCards } from "./metric-cards";
 import DashboardCharts from "./dashboard-charts";
 import ImportUpload from "./import-upload";
 import ImportReview from "./import-review";
+import CategoryManager from "./category-manager";
+import CashflowOverview from "./cashflow-overview";
 import type { ParsedTransaction } from "@/lib/parsers/wise-csv";
 import {
   LayoutDashboard,
   CreditCard,
   Settings,
+  Tag,
   Plus,
   Upload,
   Loader2,
 } from "lucide-react";
 
-type Tab = "dashboard" | "accounts" | "settings";
+type Tab = "dashboard" | "accounts" | "categories" | "settings";
 
 interface Props {
   journal: Journal;
@@ -40,6 +43,7 @@ export default function JournalDashboard({
 }: Props) {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [accounts, setAccounts] = useState(initialAccounts);
+  const [cats, setCats] = useState(categories);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
@@ -64,6 +68,11 @@ export default function JournalDashboard({
       key: "accounts",
       label: "Účty",
       icon: <CreditCard className="h-4 w-4" />,
+    },
+    {
+      key: "categories",
+      label: "Kategorie",
+      icon: <Tag className="h-4 w-4" />,
     },
     {
       key: "settings",
@@ -155,7 +164,7 @@ export default function JournalDashboard({
           <DashboardContent
             journal={journal}
             accounts={accounts}
-            categories={categories}
+            categories={cats}
             onNewTransaction={handleNewTransaction}
             onEditTransaction={handleEditTransaction}
             refreshKey={refreshKey}
@@ -168,6 +177,13 @@ export default function JournalDashboard({
             onAccountsChange={setAccounts}
           />
         )}
+        {tab === "categories" && (
+          <CategoryManager
+            journalId={journal.id}
+            categories={cats}
+            onCategoriesChange={setCats}
+          />
+        )}
         {tab === "settings" && <JournalSettings journal={journal} />}
       </div>
 
@@ -176,7 +192,7 @@ export default function JournalDashboard({
         <TransactionForm
           journal={journal}
           accounts={accounts}
-          categories={categories}
+          categories={cats}
           transaction={editingTransaction}
           onClose={handleCloseForm}
           onSaved={handleTransactionSaved}
@@ -208,7 +224,7 @@ export default function JournalDashboard({
           accountId={importReview.accountId}
           importId={importReview.importId}
           transactions={importReview.transactions}
-          categories={categories}
+          categories={cats}
           fileName={importReview.fileName}
           onConfirmed={() => {
             setImportReview(null);
@@ -318,6 +334,14 @@ function DashboardContent({
         </div>
       ) : (
         <>
+          {/* Cashflow overview for cashflow journals */}
+          {journal.type === "cashflow" && (
+            <CashflowOverview
+              journal={journal}
+              transactions={filteredTransactions}
+            />
+          )}
+
           {/* Metric cards */}
           <MetricCards
             transactions={filteredTransactions}

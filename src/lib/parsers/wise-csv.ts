@@ -8,7 +8,7 @@ export interface ParsedTransaction {
   description: string;
   counterparty: string;
   category_id: string | null;
-  source: "import_csv";
+  source: "import_csv" | "import_pdf";
   external_id: string;
   original_amount: number | null;
   original_currency: string | null;
