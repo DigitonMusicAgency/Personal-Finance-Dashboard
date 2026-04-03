@@ -38,7 +38,7 @@ export default function TransactionTable({
 
   const loadTransactions = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ journal_id: journalId });
+    const params = new URLSearchParams({ journal_id: journalId, limit: "5000" });
     if (filterAccount) params.set("account_id", filterAccount);
     if (filterType) params.set("type", filterType);
 

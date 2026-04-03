@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 export interface PeriodFilter {
   key: string;
   label: string;
@@ -21,7 +23,7 @@ function lastDayOfMonth(year: number, month: number): number {
 export function getDefaultPeriods(): PeriodFilter[] {
   const now = new Date();
   const year = now.getFullYear();
-  const month = now.getMonth(); // 0-indexed
+  const month = now.getMonth();
 
   const prevMonth = month === 0 ? 11 : month - 1;
   const prevMonthYear = month === 0 ? year - 1 : year;
@@ -81,26 +83,104 @@ interface PeriodFilterProps {
 
 export default function PeriodFilterBar({ value, onChange }: PeriodFilterProps) {
   const periods = getDefaultPeriods();
+  const [showCustom, setShowCustom] = useState(false);
+  const [customStart, setCustomStart] = useState(value.startDate);
+  const [customEnd, setCustomEnd] = useState(value.endDate);
+
+  const isCustomActive = value.key === "custom";
+
+  function applyCustom() {
+    if (customStart && customEnd && customStart <= customEnd) {
+      onChange({
+        key: "custom",
+        label: "Vlastní",
+        startDate: customStart,
+        endDate: customEnd,
+      });
+      setShowCustom(false);
+    }
+  }
 
   return (
-    <div className="flex flex-wrap gap-1">
-      {periods.map((period) => {
-        const isActive = period.key === value.key;
-        return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-1">
+        {periods.map((period) => {
+          const isActive = period.key === value.key;
+          return (
+            <button
+              key={period.key}
+              type="button"
+              onClick={() => {
+                onChange(period);
+                setShowCustom(false);
+              }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                isActive
+                  ? "bg-[var(--primary)] text-white"
+                  : "text-[var(--muted-foreground)] hover:bg-[var(--accent)]"
+              }`}
+            >
+              {period.label}
+            </button>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={() => setShowCustom(!showCustom)}
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            isCustomActive
+              ? "bg-[var(--primary)] text-white"
+              : "text-[var(--muted-foreground)] hover:bg-[var(--accent)]"
+          }`}
+        >
+          {isCustomActive
+            ? `${customStart} — ${customEnd}`
+            : "Vlastní rozsah"}
+        </button>
+      </div>
+
+      {showCustom && (
+        <div className="flex flex-wrap items-end gap-3 rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
+          <div>
+            <label className="mb-1 block text-xs text-[var(--muted-foreground)]">
+              Od
+            </label>
+            <input
+              type="date"
+              value={customStart}
+              onChange={(e) => setCustomStart(e.target.value)}
+              className="rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-1.5 text-sm outline-none focus:border-[var(--primary)]"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-[var(--muted-foreground)]">
+              Do
+            </label>
+            <input
+              type="date"
+              value={customEnd}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              className="rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-1.5 text-sm outline-none focus:border-[var(--primary)]"
+            />
+          </div>
           <button
-            key={period.key}
             type="button"
-            onClick={() => onChange(period)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              isActive
-                ? "bg-[var(--primary)] text-white"
-                : "text-[var(--muted-foreground)] hover:bg-[var(--accent)]"
-            }`}
+            onClick={applyCustom}
+            disabled={!customStart || !customEnd || customStart > customEnd}
+            className="rounded-lg bg-[var(--primary)] px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
           >
-            {period.label}
+            Použít
           </button>
-        );
-      })}
+          <button
+            type="button"
+            onClick={() => setShowCustom(false)}
+            className="rounded-lg px-3 py-1.5 text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)]"
+          >
+            Zrušit
+          </button>
+        </div>
+      )}
     </div>
   );
 }

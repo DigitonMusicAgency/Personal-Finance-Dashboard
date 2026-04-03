@@ -1,7 +1,7 @@
 import type { ParsedTransaction } from "./wise-csv";
 
 const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 const EXTRACTION_PROMPT = `You are parsing a Czech bank statement PDF. The bank may be Air Bank, Fio banka, ČSOB, Komerční banka, Raiffeisenbank, or any other Czech bank.
 
