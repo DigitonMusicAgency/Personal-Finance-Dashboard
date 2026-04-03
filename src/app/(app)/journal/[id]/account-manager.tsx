@@ -18,6 +18,7 @@ interface Props {
 interface AccountFormData {
   name: string;
   bank_service: string;
+  account_number: string;
   currency: string;
   opening_balance: string;
   opening_balance_date: string;
@@ -28,6 +29,7 @@ interface AccountFormData {
 const emptyForm: AccountFormData = {
   name: "",
   bank_service: "Air Bank",
+  account_number: "",
   currency: "CZK",
   opening_balance: "0",
   opening_balance_date: "",
@@ -55,6 +57,7 @@ export default function AccountManager({
     setForm({
       name: account.name,
       bank_service: account.bank_service,
+      account_number: account.account_number ?? "",
       currency: account.currency,
       opening_balance: String(account.opening_balance),
       opening_balance_date: account.opening_balance_date ?? "",
@@ -78,6 +81,7 @@ export default function AccountManager({
       journal_id: journalId,
       name: form.name.trim(),
       bank_service: form.bank_service,
+      account_number: form.account_number.trim() || null,
       currency: form.currency,
       opening_balance: parseFloat(form.opening_balance) || 0,
       opening_balance_date: form.opening_balance_date || null,
@@ -193,6 +197,7 @@ export default function AccountManager({
                   </div>
                   <p className="text-sm text-[var(--muted-foreground)]">
                     {account.bank_service}
+                    {account.account_number && ` — ${account.account_number}`}
                   </p>
                   {account.opening_balance !== 0 && (
                     <p className="text-sm text-[var(--muted-foreground)]">
@@ -284,6 +289,19 @@ function AccountForm({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="col-span-2">
+          <label className="mb-1 block text-sm text-[var(--muted-foreground)]">
+            Číslo účtu / IBAN
+          </label>
+          <input
+            type="text"
+            value={form.account_number}
+            onChange={(e) => updateForm("account_number", e.target.value)}
+            placeholder="např. 1234567890/0800 nebo CZ65 0800 0000 0012 3456 7890"
+            className="w-full rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+          />
         </div>
 
         <div>

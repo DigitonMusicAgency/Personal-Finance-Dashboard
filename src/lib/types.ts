@@ -39,6 +39,7 @@ export interface Account {
   journal_id: string;
   name: string;
   bank_service: string;
+  account_number: string | null;
   currency: string;
   opening_balance: number;
   opening_balance_date: string | null;
