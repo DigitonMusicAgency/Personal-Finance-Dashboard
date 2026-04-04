@@ -273,7 +273,24 @@ function DashboardContent({
   onEditTransaction: (tx: Transaction) => void;
   refreshKey: number;
 }) {
-  const [period, setPeriod] = useState<PeriodFilter>(getDefaultPeriod);
+  const [period, setPeriod] = useState<PeriodFilter>(() => {
+    try {
+      const savedKey = localStorage.getItem(`period-filter-${journal.id}`);
+      if (savedKey) {
+        const periods = getDefaultPeriods();
+        const found = periods.find((p) => p.key === savedKey);
+        if (found) return found;
+      }
+    } catch { /* ignore */ }
+    return getDefaultPeriod();
+  });
+
+  function handlePeriodChange(newPeriod: PeriodFilter) {
+    setPeriod(newPeriod);
+    try {
+      localStorage.setItem(`period-filter-${journal.id}`, newPeriod.key);
+    } catch { /* ignore */ }
+  }
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -326,7 +343,7 @@ function DashboardContent({
   return (
     <div className="space-y-6">
       {/* Period filter */}
-      <PeriodFilterBar value={period} onChange={setPeriod} />
+      <PeriodFilterBar value={period} onChange={handlePeriodChange} />
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
@@ -363,6 +380,8 @@ function DashboardContent({
         categories={categories}
         onEditTransaction={onEditTransaction}
         refreshKey={refreshKey}
+        startDate={period.startDate}
+        endDate={period.endDate}
       />
     </div>
   );

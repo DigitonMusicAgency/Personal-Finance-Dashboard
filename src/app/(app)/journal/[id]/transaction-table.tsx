@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Transaction, Account, Category, TransactionType } from "@/lib/types";
 import { formatAmount, formatDateShort, getAmountColorClass } from "@/lib/utils";
 import { Loader2, ArrowUpDown, InboxIcon, Search } from "lucide-react";
@@ -19,6 +19,8 @@ interface Props {
   categories: Category[];
   onEditTransaction: (transaction: Transaction) => void;
   refreshKey?: number;
+  startDate?: string;
+  endDate?: string;
 }
 
 export default function TransactionTable({
@@ -27,6 +29,8 @@ export default function TransactionTable({
   categories,
   onEditTransaction,
   refreshKey,
+  startDate,
+  endDate,
 }: Props) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,9 +64,39 @@ export default function TransactionTable({
     loadTransactions();
   }, [loadTransactions, refreshKey]);
 
-  // Filter by search text, then sort
+  // Scroll position preservation
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const savedScrollTop = useRef(0);
+
+  function handleEdit(tx: Transaction) {
+    // Save scroll position before opening form
+    const scrollParent = scrollRef.current?.closest(".overflow-y-auto");
+    if (scrollParent) savedScrollTop.current = scrollParent.scrollTop;
+    onEditTransaction(tx);
+  }
+
+  // Restore scroll position after refresh (edit save)
+  useEffect(() => {
+    if (savedScrollTop.current > 0 && !loading) {
+      const scrollParent = scrollRef.current?.closest(".overflow-y-auto");
+      if (scrollParent) {
+        requestAnimationFrame(() => {
+          scrollParent.scrollTop = savedScrollTop.current;
+        });
+      }
+    }
+  }, [loading, refreshKey]);
+
+  // Filter by date range, search text, then sort
+  let dateFiltered = transactions;
+  if (startDate && endDate) {
+    dateFiltered = transactions.filter(
+      (tx) => tx.date >= startDate && tx.date <= endDate
+    );
+  }
+
   const filtered = searchText.trim()
-    ? transactions.filter((tx) => {
+    ? dateFiltered.filter((tx) => {
         const q = searchText.toLowerCase();
         return (
           (tx.counterparty || "").toLowerCase().includes(q) ||
@@ -70,7 +104,7 @@ export default function TransactionTable({
           (tx.note || "").toLowerCase().includes(q)
         );
       })
-    : transactions;
+    : dateFiltered;
 
   const sorted = [...filtered].sort((a, b) => {
     const cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
@@ -90,7 +124,7 @@ export default function TransactionTable({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={scrollRef}>
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <select
@@ -217,7 +251,7 @@ export default function TransactionTable({
                 return (
                   <tr
                     key={tx.id}
-                    onClick={() => onEditTransaction(tx)}
+                    onClick={() => handleEdit(tx)}
                     className="cursor-pointer border-b border-[var(--border)] transition-colors hover:bg-[var(--accent)]"
                   >
                     <td className="whitespace-nowrap px-4 py-3">
