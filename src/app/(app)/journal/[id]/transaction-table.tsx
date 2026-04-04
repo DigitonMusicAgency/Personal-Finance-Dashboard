@@ -39,6 +39,7 @@ export default function TransactionTable({
   // Filters
   const [filterAccount, setFilterAccount] = useState("");
   const [filterType, setFilterType] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
   const [searchText, setSearchText] = useState("");
 
   const loadTransactions = useCallback(async () => {
@@ -89,7 +90,7 @@ export default function TransactionTable({
     }
   }, [loading, refreshKey]);
 
-  // Filter by date range, search text, then sort
+  // Filter by date range, category, search text, then sort
   let dateFiltered = transactions;
   if (startDate && endDate) {
     dateFiltered = transactions.filter(
@@ -97,8 +98,15 @@ export default function TransactionTable({
     );
   }
 
+  let catFiltered = dateFiltered;
+  if (filterCategory === "__none__") {
+    catFiltered = dateFiltered.filter((tx) => !tx.category_id);
+  } else if (filterCategory) {
+    catFiltered = dateFiltered.filter((tx) => tx.category_id === filterCategory);
+  }
+
   const filtered = searchText.trim()
-    ? dateFiltered.filter((tx) => {
+    ? catFiltered.filter((tx) => {
         const q = searchText.toLowerCase();
         return (
           (tx.counterparty || "").toLowerCase().includes(q) ||
@@ -106,7 +114,7 @@ export default function TransactionTable({
           (tx.note || "").toLowerCase().includes(q)
         );
       })
-    : dateFiltered;
+    : catFiltered;
 
   const sorted = [...filtered].sort((a, b) => {
     const cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
@@ -155,6 +163,20 @@ export default function TransactionTable({
           ))}
         </select>
 
+        <select
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
+          className="rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-1.5 text-sm outline-none focus:border-[var(--primary)]"
+        >
+          <option value="">Všechny kategorie</option>
+          <option value="__none__">Bez kategorie</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
           <input
@@ -166,11 +188,12 @@ export default function TransactionTable({
           />
         </div>
 
-        {(filterAccount || filterType || searchText) && (
+        {(filterAccount || filterType || filterCategory || searchText) && (
           <button
             onClick={() => {
               setFilterAccount("");
               setFilterType("");
+              setFilterCategory("");
               setSearchText("");
             }}
             className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
