@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       original_currency,
     } = body;
 
-    if (!account_id || !journal_id || !date || amount === undefined || !currency || amount_czk === undefined || !type || !source) {
+    if (!journal_id || !date || amount === undefined || !currency || amount_czk === undefined || !type || !source) {
       return NextResponse.json({ error: "Chybí povinné údaje transakce" }, { status: 400 });
     }
 
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await admin
       .from("transactions")
       .insert({
-        account_id,
+        account_id: account_id || null,
         journal_id,
         date,
         amount,

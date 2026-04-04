@@ -59,7 +59,7 @@ export default function JournalDashboard({
     accountId: string;
   } | null>(null);
 
-  const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
+  const allTabs: { key: Tab; label: string; icon: React.ReactNode; hideForCashflow?: boolean }[] = [
     {
       key: "dashboard",
       label: "Přehled",
@@ -74,6 +74,7 @@ export default function JournalDashboard({
       key: "categories",
       label: "Kategorie",
       icon: <Tag className="h-4 w-4" />,
+      hideForCashflow: true,
     },
     {
       key: "settings",
@@ -81,6 +82,10 @@ export default function JournalDashboard({
       icon: <Settings className="h-4 w-4" />,
     },
   ];
+
+  const tabs = allTabs.filter(
+    (t) => !t.hideForCashflow || journal.type !== "cashflow"
+  );
 
   function handleNewTransaction() {
     setEditingTransaction(null);
@@ -120,15 +125,17 @@ export default function JournalDashboard({
           </div>
 
           {/* Action buttons */}
-          {tab === "dashboard" && accounts.length > 0 && (
+          {tab === "dashboard" && (
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowImportUpload(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--accent)]"
-              >
-                <Upload className="h-4 w-4" />
-                Import
-              </button>
+              {journal.type !== "cashflow" && accounts.length > 0 && (
+                <button
+                  onClick={() => setShowImportUpload(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--accent)]"
+                >
+                  <Upload className="h-4 w-4" />
+                  Import
+                </button>
+              )}
               <button
                 onClick={handleNewTransaction}
                 className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600"
@@ -320,19 +327,6 @@ function DashboardContent({
     fetchTransactions();
   }, [fetchTransactions, refreshKey]);
 
-  if (accounts.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-[var(--border)] p-12 text-center">
-        <CreditCard className="mx-auto h-12 w-12 text-[var(--muted-foreground)]" />
-        <h3 className="mt-4 text-lg font-medium">Zatím žádné účty</h3>
-        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          Přejděte na záložku &quot;Účty&quot; a přidejte svůj první bankovní
-          účet.
-        </p>
-      </div>
-    );
-  }
-
   // Filter transactions by selected period
   const filteredTransactions = allTransactions.filter(
     (t) => t.date >= period.startDate && t.date <= period.endDate
@@ -353,23 +347,21 @@ function DashboardContent({
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-[var(--muted-foreground)]" />
         </div>
+      ) : journal.type === "cashflow" ? (
+        /* Cashflow journal: dedicated overview only */
+        <CashflowOverview
+          journal={journal}
+          transactions={filteredTransactions}
+          onEditTransaction={onEditTransaction}
+        />
       ) : (
         <>
-          {/* Cashflow overview for cashflow journals */}
-          {journal.type === "cashflow" && (
-            <CashflowOverview
-              journal={journal}
-              transactions={filteredTransactions}
-            />
-          )}
-
-          {/* Metric cards */}
+          {/* Standard journal: metrics + charts */}
           <MetricCards
             transactions={filteredTransactions}
             previousTransactions={prevTransactions}
           />
 
-          {/* Charts */}
           <DashboardCharts
             transactions={filteredTransactions}
             categories={categories}
@@ -377,23 +369,27 @@ function DashboardContent({
         </>
       )}
 
-      {/* Transaction table */}
-      <TransactionTable
-        journalId={journal.id}
-        accounts={accounts}
-        categories={categories}
-        onEditTransaction={onEditTransaction}
-        refreshKey={refreshKey}
-        startDate={period.startDate}
-        endDate={period.endDate}
-      />
+      {/* Transaction table (both types) */}
+      {journal.type !== "cashflow" && (
+        <TransactionTable
+          journalId={journal.id}
+          accounts={accounts}
+          categories={categories}
+          onEditTransaction={onEditTransaction}
+          refreshKey={refreshKey}
+          startDate={period.startDate}
+          endDate={period.endDate}
+        />
+      )}
 
-      {/* Import history */}
-      <ImportHistory
-        journalId={journal.id}
-        refreshKey={refreshKey}
-        onDeleted={onRefresh}
-      />
+      {/* Import history (standard only) */}
+      {journal.type !== "cashflow" && (
+        <ImportHistory
+          journalId={journal.id}
+          refreshKey={refreshKey}
+          onDeleted={onRefresh}
+        />
+      )}
     </div>
   );
 }

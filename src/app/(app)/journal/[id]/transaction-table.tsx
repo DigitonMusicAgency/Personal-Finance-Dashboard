@@ -128,7 +128,8 @@ export default function TransactionTable({
     return cat || null;
   }
 
-  function getAccountName(accId: string) {
+  function getAccountName(accId: string | null) {
+    if (!accId) return "—";
     const acc = accounts.find((a) => a.id === accId);
     return acc?.name || "—";
   }

@@ -83,6 +83,7 @@ export default function TransactionForm({
   const parsedRate = parseFloat(exchangeRate) || 1;
   const amountCzk = parsedAmount * parsedRate;
   const isCzk = currency === "CZK";
+  const isCashflow = journal.type === "cashflow";
 
   // When account changes, update currency
   const handleAccountChange = (accId: string) => {
@@ -128,8 +129,8 @@ export default function TransactionForm({
   );
 
   async function handleSave() {
-    if (!accountId || !amount || !date) {
-      setError("Vyplňte datum, účet a částku.");
+    if (!amount || !date) {
+      setError("Vyplňte datum a částku.");
       return;
     }
 
@@ -143,7 +144,7 @@ export default function TransactionForm({
       type === "expense" ? -Math.abs(amountCzk) : Math.abs(amountCzk);
 
     const payload = {
-      account_id: accountId,
+      account_id: accountId || null,
       journal_id: journal.id,
       date,
       amount: signedAmount,
@@ -238,7 +239,7 @@ export default function TransactionForm({
         {/* Form */}
         <div className="space-y-4">
           {/* Row 1: Date + Account */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className={`grid gap-4 ${accounts.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
             <div>
               <label className="mb-1 block text-sm text-[var(--muted-foreground)]">
                 Datum *
@@ -250,25 +251,25 @@ export default function TransactionForm({
                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
               />
             </div>
-            <div>
-              <label className="mb-1 block text-sm text-[var(--muted-foreground)]">
-                Účet *
-              </label>
-              <select
-                value={accountId}
-                onChange={(e) => handleAccountChange(e.target.value)}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-              >
-                {accounts.length === 0 && (
-                  <option value="">Nejprve přidejte účet</option>
-                )}
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} ({a.currency})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {accounts.length > 0 && (
+              <div>
+                <label className="mb-1 block text-sm text-[var(--muted-foreground)]">
+                  Účet
+                </label>
+                <select
+                  value={accountId}
+                  onChange={(e) => handleAccountChange(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                >
+                  <option value="">Bez účtu</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.currency})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Row 2: Type */}
@@ -400,24 +401,26 @@ export default function TransactionForm({
             />
           </div>
 
-          {/* Row 7: Category */}
-          <div>
-            <label className="mb-1 block text-sm text-[var(--muted-foreground)]">
-              Kategorie
-            </label>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-            >
-              <option value="">Bez kategorie</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Row 7: Category (hidden for cashflow journals) */}
+          {!isCashflow && (
+            <div>
+              <label className="mb-1 block text-sm text-[var(--muted-foreground)]">
+                Kategorie
+              </label>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+              >
+                <option value="">Bez kategorie</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Row 8: Note */}
           <div>
@@ -471,7 +474,7 @@ export default function TransactionForm({
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || !accountId || !amount}
+              disabled={saving || !amount}
               className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}

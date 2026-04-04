@@ -3,34 +3,14 @@
 import { useMemo } from "react";
 import { InboxIcon } from "lucide-react";
 import { formatAmount, formatDateShort, getAmountColorClass } from "@/lib/utils";
-
-interface Journal {
-  id: string;
-  user_id: string;
-  name: string;
-  type: "standard" | "cashflow";
-  counterparty_name: string | null;
-  is_archived: boolean;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Transaction {
-  id: string;
-  date: string;
-  amount: number;
-  currency: string;
-  amount_czk: number;
-  type: string;
-  description: string | null;
-  counterparty: string | null;
-}
+import type { Journal, Transaction } from "@/lib/types";
 
 interface Props {
   journal: Journal;
   transactions: Transaction[];
+  onEditTransaction?: (tx: Transaction) => void;
 }
+
 
 const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   income: { label: "Příjem", color: "bg-emerald-500/20 text-emerald-400" },
@@ -40,7 +20,8 @@ const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   manual_adjustment: { label: "Úprava", color: "bg-purple-500/20 text-purple-400" },
 };
 
-export default function CashflowOverview({ journal, transactions }: Props) {
+export default function CashflowOverview({ journal, transactions, onEditTransaction }: Props) {
+  const counterpartyLabel = journal.counterparty_name || "Protistrana";
   const { totalReceived, totalSpent, remaining, progressPercent, sortedWithBalance } =
     useMemo(() => {
       // Card 1: sum of positive amount_czk (income + repayment)
@@ -86,61 +67,57 @@ export default function CashflowOverview({ journal, transactions }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Metric cards */}
-      <div className="grid grid-cols-3 gap-4">
-        {/* Celkem přijato */}
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
-          <div className="flex items-center gap-1.5 text-sm text-[var(--muted-foreground)]">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
-            Celkem přijato
+      {/* Two-party balance */}
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
+        <div className="grid grid-cols-3 gap-4 items-center">
+          {/* Left: You */}
+          <div className="text-center">
+            <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider mb-1">Vy</p>
+            <p className="text-sm font-medium">Vydáno protistraně</p>
+            <p className="text-xl font-bold text-red-400 mt-1">
+              {formatAmount(totalSpent)} Kč
+            </p>
           </div>
-          <div className="text-2xl font-bold mt-1 text-emerald-400">
-            {formatAmount(totalReceived)} Kč
+
+          {/* Center: Net balance */}
+          <div className="text-center">
+            <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider mb-1">Saldo</p>
+            <p className={`text-3xl font-bold ${getAmountColorClass(remaining)}`}>
+              {remaining > 0 ? "+" : ""}{formatAmount(remaining)} Kč
+            </p>
+            <p className="text-sm text-[var(--muted-foreground)] mt-2">
+              {remaining > 0
+                ? `${counterpartyLabel} vám dluží`
+                : remaining < 0
+                  ? `Dlužíte – ${counterpartyLabel}`
+                  : "Vyrovnáno"}
+            </p>
+          </div>
+
+          {/* Right: Counterparty */}
+          <div className="text-center">
+            <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider mb-1">
+              {counterpartyLabel}
+            </p>
+            <p className="text-sm font-medium">Přijato od protistrany</p>
+            <p className="text-xl font-bold text-emerald-400 mt-1">
+              {formatAmount(totalReceived)} Kč
+            </p>
           </div>
         </div>
 
-        {/* Celkem vydáno */}
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
-          <div className="flex items-center gap-1.5 text-sm text-[var(--muted-foreground)]">
-            <span className="inline-block h-2 w-2 rounded-full bg-red-400" />
-            Celkem vydáno
-          </div>
-          <div className="text-2xl font-bold mt-1 text-red-400">
-            {formatAmount(totalSpent)} Kč
-          </div>
-        </div>
-
-        {/* Zbývá */}
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
-          <div className="flex items-center gap-1.5 text-sm text-[var(--muted-foreground)]">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${
-                remaining > 0
-                  ? "bg-emerald-400"
-                  : remaining < 0
-                    ? "bg-red-400"
-                    : "bg-zinc-400"
-              }`}
+        {/* Progress bar */}
+        <div className="mt-5 space-y-1">
+          <div className="h-2 rounded-full bg-[var(--accent)]">
+            <div
+              className="h-2 rounded-full bg-emerald-500 transition-all"
+              style={{ width: `${Math.min(progressPercent, 100)}%` }}
             />
-            Zbývá
           </div>
-          <div className={`text-2xl font-bold mt-1 ${getAmountColorClass(remaining)}`}>
-            {formatAmount(remaining)} Kč
-          </div>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            {progressPercent} % uhrazeno
+          </p>
         </div>
-      </div>
-
-      {/* Progress bar */}
-      <div className="space-y-2">
-        <div className="h-3 rounded-full bg-[var(--accent)]">
-          <div
-            className="h-3 rounded-full bg-emerald-500 transition-all"
-            style={{ width: `${Math.min(progressPercent, 100)}%` }}
-          />
-        </div>
-        <p className="text-sm text-[var(--muted-foreground)]">
-          {progressPercent} % uhrazeno
-        </p>
       </div>
 
       {/* Settlement history table */}
@@ -185,7 +162,8 @@ export default function CashflowOverview({ journal, transactions }: Props) {
                 return (
                   <tr
                     key={tx.id}
-                    className="border-b border-[var(--border)] transition-colors hover:bg-[var(--accent)]"
+                    onClick={() => onEditTransaction?.(tx as Transaction)}
+                    className={`border-b border-[var(--border)] transition-colors hover:bg-[var(--accent)] ${onEditTransaction ? "cursor-pointer" : ""}`}
                   >
                     <td className="whitespace-nowrap px-4 py-3">
                       {formatDateShort(tx.date)}

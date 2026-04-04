@@ -62,7 +62,7 @@ export interface Category {
 
 export interface Transaction {
   id: string;
-  account_id: string;
+  account_id: string | null;
   journal_id: string;
   date: string;
   amount: number;
