@@ -70,23 +70,13 @@ export async function parseAirBankPdf(
     );
   }
 
-  // Strip any accidental markdown fencing
-  // Extract JSON array from response — Gemini 2.5 may include thinking blocks,
-  // markdown fencing, or other text around the actual JSON
-  let jsonStr = rawText;
-
-  // Try to find a JSON array between ```json ... ``` fencing
-  const fencedMatch = rawText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/i);
-  if (fencedMatch) {
-    jsonStr = fencedMatch[1];
-  } else {
-    // Try to find the first [ ... ] block in the response
-    const bracketStart = rawText.indexOf("[");
-    const bracketEnd = rawText.lastIndexOf("]");
-    if (bracketStart !== -1 && bracketEnd > bracketStart) {
-      jsonStr = rawText.slice(bracketStart, bracketEnd + 1);
-    }
-  }
+  // Extract JSON array — find first [ and last ] in the response.
+  // This handles markdown fencing, thinking blocks, and any wrapper text.
+  const bracketStart = rawText.indexOf("[");
+  const bracketEnd = rawText.lastIndexOf("]");
+  const jsonStr = bracketStart !== -1 && bracketEnd > bracketStart
+    ? rawText.slice(bracketStart, bracketEnd + 1)
+    : rawText;
 
   let parsed: GeminiTransaction[];
   try {
