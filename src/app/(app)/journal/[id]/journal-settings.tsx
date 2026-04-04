@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Journal } from "@/lib/types";
-import { Save, Archive, RotateCcw } from "lucide-react";
+import { Save, Archive, RotateCcw, Trash2 } from "lucide-react";
 
 interface Props {
   journal: Journal;
@@ -42,6 +42,28 @@ export default function JournalSettings({ journal }: Props) {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
     router.refresh();
+  }
+
+  async function handleDelete() {
+    const confirmText = prompt(
+      `Pro smazání deníku "${journal.name}" napište jeho název:`
+    );
+    if (confirmText !== journal.name) {
+      if (confirmText !== null) alert("Název nesouhlasí. Deník nebyl smazán.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("journals")
+      .delete()
+      .eq("id", journal.id);
+
+    if (error) {
+      alert("Chyba: " + error.message);
+      return;
+    }
+
+    router.push("/");
   }
 
   async function handleArchiveToggle() {
@@ -144,6 +166,21 @@ export default function JournalSettings({ journal }: Props) {
               Archivovat deník
             </>
           )}
+        </button>
+      </div>
+
+      {/* Delete section */}
+      <div className="rounded-xl border border-red-500/30 bg-[var(--card)] p-4">
+        <h3 className="mb-2 font-medium text-red-400">Smazat deník</h3>
+        <p className="mb-3 text-sm text-[var(--muted-foreground)]">
+          Trvale smaže deník a všechny jeho transakce, účty a kategorie. Tuto akci nelze vrátit zpět.
+        </p>
+        <button
+          onClick={handleDelete}
+          className="flex items-center gap-1.5 rounded-lg bg-red-500/10 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20"
+        >
+          <Trash2 className="h-4 w-4" />
+          Smazat deník
         </button>
       </div>
     </div>

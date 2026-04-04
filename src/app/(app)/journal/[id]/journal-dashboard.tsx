@@ -284,17 +284,20 @@ function DashboardContent({
   refreshKey: number;
   onRefresh: () => void;
 }) {
-  const [period, setPeriod] = useState<PeriodFilter>(() => {
+  const [period, setPeriod] = useState<PeriodFilter>(getDefaultPeriod);
+
+  // Restore saved period from localStorage after mount
+  useEffect(() => {
     try {
       const savedKey = localStorage.getItem(`period-filter-${journal.id}`);
-      if (savedKey) {
+      if (savedKey && savedKey !== period.key) {
         const periods = getDefaultPeriods();
         const found = periods.find((p) => p.key === savedKey);
-        if (found) return found;
+        if (found) setPeriod(found);
       }
     } catch { /* ignore */ }
-    return getDefaultPeriod();
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [journal.id]);
 
   function handlePeriodChange(newPeriod: PeriodFilter) {
     setPeriod(newPeriod);
