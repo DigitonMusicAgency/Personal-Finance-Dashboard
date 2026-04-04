@@ -50,6 +50,10 @@ export default function ImportReview({
         c.name.toLowerCase().includes("poplatky")
     );
 
+    const transferCat = categories.find(
+      (c) => c.name.toLowerCase() === "převod" || c.name.toLowerCase() === "prevod"
+    );
+
     // Load categorization rules
     async function initRows() {
       let rules: Array<{ match_field: string; match_value: string; category_id: string }> = [];
@@ -86,6 +90,11 @@ export default function ImportReview({
         // Apply default income category
         if (!categoryId && tx.type === "income" && defaultIncomeCategoryId) {
           categoryId = defaultIncomeCategoryId;
+        }
+
+        // Auto-categorize internal transfers
+        if (!categoryId && tx.type === "internal_transfer" && transferCat) {
+          categoryId = transferCat.id;
         }
 
         return { ...tx, category_id: categoryId, _deleted: false };

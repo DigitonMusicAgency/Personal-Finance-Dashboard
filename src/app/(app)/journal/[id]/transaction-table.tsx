@@ -80,9 +80,11 @@ export default function TransactionTable({
     if (savedScrollTop.current > 0 && !loading) {
       const scrollParent = scrollRef.current?.closest(".overflow-y-auto");
       if (scrollParent) {
-        requestAnimationFrame(() => {
-          scrollParent.scrollTop = savedScrollTop.current;
-        });
+        // Wait for DOM to fully render before restoring scroll
+        const target = savedScrollTop.current;
+        setTimeout(() => {
+          scrollParent.scrollTop = target;
+        }, 50);
       }
     }
   }, [loading, refreshKey]);
