@@ -17,6 +17,7 @@ import ImportUpload from "./import-upload";
 import ImportReview from "./import-review";
 import CategoryManager from "./category-manager";
 import CashflowOverview from "./cashflow-overview";
+import ImportHistory from "./import-history";
 import type { ParsedTransaction } from "@/lib/parsers/wise-csv";
 import {
   LayoutDashboard,
@@ -168,6 +169,7 @@ export default function JournalDashboard({
             onNewTransaction={handleNewTransaction}
             onEditTransaction={handleEditTransaction}
             refreshKey={refreshKey}
+            onRefresh={() => setRefreshKey((k) => k + 1)}
           />
         )}
         {tab === "accounts" && (
@@ -265,6 +267,7 @@ function DashboardContent({
   onNewTransaction,
   onEditTransaction,
   refreshKey,
+  onRefresh,
 }: {
   journal: Journal;
   accounts: Account[];
@@ -272,6 +275,7 @@ function DashboardContent({
   onNewTransaction: () => void;
   onEditTransaction: (tx: Transaction) => void;
   refreshKey: number;
+  onRefresh: () => void;
 }) {
   const [period, setPeriod] = useState<PeriodFilter>(() => {
     try {
@@ -382,6 +386,13 @@ function DashboardContent({
         refreshKey={refreshKey}
         startDate={period.startDate}
         endDate={period.endDate}
+      />
+
+      {/* Import history */}
+      <ImportHistory
+        journalId={journal.id}
+        refreshKey={refreshKey}
+        onDeleted={onRefresh}
       />
     </div>
   );

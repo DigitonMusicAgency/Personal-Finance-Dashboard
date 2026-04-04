@@ -8,6 +8,60 @@ import { parseAirBankPdfFromBytes } from "@/lib/parsers/airbank-pdf";
 export const maxDuration = 60;
 
 /**
+ * GET /api/imports?journal_id=XXX — List confirmed imports for a journal
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Nepřihlášený uživatel" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const journalId = searchParams.get("journal_id");
+
+    if (!journalId) {
+      return NextResponse.json({ error: "Chybí journal_id" }, { status: 400 });
+    }
+
+    const admin = createAdminClient();
+
+    // Verify journal ownership
+    const { data: journal } = await admin
+      .from("journals")
+      .select("id")
+      .eq("id", journalId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (!journal) {
+      return NextResponse.json({ error: "Deník nenalezen" }, { status: 404 });
+    }
+
+    const { data, error } = await admin
+      .from("document_imports")
+      .select("id, file_name, source_type, status, transaction_count, confirmed_at, created_at")
+      .eq("journal_id", journalId)
+      .in("status", ["confirmed"])
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data ?? []);
+  } catch (err) {
+    console.error("Import list error:", err);
+    return NextResponse.json({ error: "Neočekávaná chyba serveru" }, { status: 500 });
+  }
+}
+
+/**
  * Detect source type from filename.
  * DB constraint only allows: airbank_pdf, wise_csv, wise_pdf
  * All bank PDFs use the same Gemini parser, so map them to airbank_pdf.
