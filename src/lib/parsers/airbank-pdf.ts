@@ -48,7 +48,7 @@ export async function parseAirBankPdf(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
+      generationConfig: { temperature: 0.1, maxOutputTokens: 65536 },
     }),
   });
 
@@ -140,7 +140,7 @@ export async function parseAirBankPdfFromBytes(
           ],
         },
       ],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 8192 },
+      generationConfig: { temperature: 0.1, maxOutputTokens: 65536 },
     }),
   });
 
@@ -152,6 +152,14 @@ export async function parseAirBankPdfFromBytes(
   }
 
   const data = await response.json();
+
+  // Check if response was truncated
+  const finishReason = data?.candidates?.[0]?.finishReason;
+  if (finishReason === "MAX_TOKENS") {
+    throw new Error(
+      "Gemini response was truncated (too many transactions). Try splitting the PDF into smaller date ranges."
+    );
+  }
 
   // Gemini 2.5 may return multiple parts (thinking + text). Find the text part.
   const parts = data?.candidates?.[0]?.content?.parts || [];
