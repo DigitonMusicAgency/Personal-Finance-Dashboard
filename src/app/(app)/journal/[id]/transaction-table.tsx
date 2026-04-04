@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Transaction, Account, Category, TransactionType } from "@/lib/types";
 import { formatAmount, formatDateShort, getAmountColorClass } from "@/lib/utils";
-import { Loader2, ArrowUpDown, InboxIcon } from "lucide-react";
+import { Loader2, ArrowUpDown, InboxIcon, Search } from "lucide-react";
 
 const TYPE_LABELS: Record<TransactionType, { label: string; color: string }> = {
   income: { label: "Příjem", color: "bg-emerald-500/20 text-emerald-400" },
@@ -35,6 +35,7 @@ export default function TransactionTable({
   // Filters
   const [filterAccount, setFilterAccount] = useState("");
   const [filterType, setFilterType] = useState("");
+  const [searchText, setSearchText] = useState("");
 
   const loadTransactions = useCallback(async () => {
     setLoading(true);
@@ -59,8 +60,19 @@ export default function TransactionTable({
     loadTransactions();
   }, [loadTransactions, refreshKey]);
 
-  // Sort transactions
-  const sorted = [...transactions].sort((a, b) => {
+  // Filter by search text, then sort
+  const filtered = searchText.trim()
+    ? transactions.filter((tx) => {
+        const q = searchText.toLowerCase();
+        return (
+          (tx.counterparty || "").toLowerCase().includes(q) ||
+          (tx.description || "").toLowerCase().includes(q) ||
+          (tx.note || "").toLowerCase().includes(q)
+        );
+      })
+    : transactions;
+
+  const sorted = [...filtered].sort((a, b) => {
     const cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
     return sortAsc ? cmp : -cmp;
   });
@@ -107,11 +119,23 @@ export default function TransactionTable({
           ))}
         </select>
 
-        {(filterAccount || filterType) && (
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
+          <input
+            type="text"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="Hledat v transakcích..."
+            className="rounded-lg border border-[var(--border)] bg-[var(--input)] pl-8 pr-3 py-1.5 text-sm outline-none focus:border-[var(--primary)] w-56"
+          />
+        </div>
+
+        {(filterAccount || filterType || searchText) && (
           <button
             onClick={() => {
               setFilterAccount("");
               setFilterType("");
+              setSearchText("");
             }}
             className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           >

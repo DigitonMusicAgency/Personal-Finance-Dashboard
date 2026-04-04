@@ -42,7 +42,7 @@ export default function ImportReview({
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
 
-  // Initialize rows with fee auto-categorization
+  // Initialize rows with fee auto-categorization + categorization rules
   useEffect(() => {
     const bankFeeCat = categories.find(
       (c) =>
@@ -50,14 +50,52 @@ export default function ImportReview({
         c.name.toLowerCase().includes("poplatky")
     );
 
-    const editableRows = initialTransactions.map((tx) => ({
-      ...tx,
-      category_id: tx._is_fee && bankFeeCat ? bankFeeCat.id : tx.category_id,
-      _deleted: false,
-    }));
+    // Load categorization rules
+    async function initRows() {
+      let rules: Array<{ match_field: string; match_value: string; category_id: string }> = [];
+      try {
+        const { createClient } = await import("@/lib/supabase/client");
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("categorization_rules")
+          .select("match_field, match_value, category_id")
+          .eq("journal_id", journalId);
+        if (data) rules = data;
+      } catch { /* ignore */ }
 
-    setRows(editableRows);
-  }, [initialTransactions, categories]);
+      // Also load default income category from localStorage
+      let defaultIncomeCategoryId: string | null = null;
+      try {
+        defaultIncomeCategoryId = localStorage.getItem(`default-income-category-${journalId}`);
+      } catch { /* ignore */ }
+
+      const editableRows = initialTransactions.map((tx) => {
+        let categoryId = tx._is_fee && bankFeeCat ? bankFeeCat.id : tx.category_id;
+
+        // Apply categorization rules if no category set
+        if (!categoryId) {
+          for (const rule of rules) {
+            const fieldValue = rule.match_field === "counterparty" ? tx.counterparty : tx.description;
+            if (fieldValue && fieldValue.toLowerCase().includes(rule.match_value.toLowerCase())) {
+              categoryId = rule.category_id;
+              break;
+            }
+          }
+        }
+
+        // Apply default income category
+        if (!categoryId && tx.type === "income" && defaultIncomeCategoryId) {
+          categoryId = defaultIncomeCategoryId;
+        }
+
+        return { ...tx, category_id: categoryId, _deleted: false };
+      });
+
+      setRows(editableRows);
+    }
+
+    initRows();
+  }, [initialTransactions, categories, journalId]);
 
   function updateRow(
     index: number,

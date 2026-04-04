@@ -130,6 +130,25 @@ export default function DashboardCharts({ transactions, categories }: Props) {
     });
   }, [transactions, categories]);
 
+  // --- Pie Chart Data: Income by Category ---
+  const incomePieData = useMemo(() => {
+    const catMap = new Map<string | null, number>();
+    for (const t of transactions) {
+      if (t.type !== "income") continue;
+      const key = t.category_id;
+      catMap.set(key, (catMap.get(key) ?? 0) + Math.abs(t.amount_czk));
+    }
+    const categoryById = new Map(categories.map((c) => [c.id, c]));
+    return Array.from(catMap.entries()).map(([catId, total]) => {
+      const cat = catId ? categoryById.get(catId) : null;
+      return {
+        name: cat?.name ?? "Bez kategorie",
+        value: Math.round(total),
+        color: cat?.color ?? "#78716C",
+      };
+    });
+  }, [transactions, categories]);
+
   // --- Line Chart Data: Cumulative Balance ---
   const lineData = useMemo(() => {
     const sorted = [...transactions]
@@ -203,6 +222,34 @@ export default function DashboardCharts({ transactions, categories }: Props) {
               paddingAngle={2}
             >
               {pieData.map((entry, index) => (
+                <Cell key={index} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip content={<PieTooltip />} />
+            <Legend
+              verticalAlign="bottom"
+              wrapperStyle={{ fontSize: 12, color: AXIS_COLOR }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Pie/Donut Chart — Income by Category */}
+      <div className={cardClass}>
+        <h3 className={titleClass}>Příjmy dle kategorií</h3>
+        <ResponsiveContainer width="100%" height={250}>
+          <PieChart>
+            <Pie
+              data={incomePieData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="45%"
+              innerRadius={60}
+              outerRadius={90}
+              paddingAngle={2}
+            >
+              {incomePieData.map((entry, index) => (
                 <Cell key={index} fill={entry.color} />
               ))}
             </Pie>

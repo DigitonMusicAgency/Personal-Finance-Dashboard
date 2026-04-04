@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Category, CategorizationRule } from "@/lib/types";
-import { Plus, Pencil, X, Check, Tag, ArrowRight } from "lucide-react";
+import { Plus, Pencil, X, Check, Tag, ArrowRight, ChevronUp, ChevronDown, Play, Loader2 } from "lucide-react";
 
 const COLOR_PRESETS = [
   "#EF4444", "#F97316", "#F59E0B", "#10B981", "#06B6D4",
@@ -54,6 +54,7 @@ export default function CategoryManager({
     category_id: "",
   });
   const [ruleLoading, setRuleLoading] = useState(false);
+  const [applyingRuleId, setApplyingRuleId] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -156,6 +157,28 @@ export default function CategoryManager({
     setLoading(false);
   }
 
+  async function handleMoveCategory(index: number, direction: "up" | "down") {
+    const sorted = [...categories].sort((a, b) => a.sort_order - b.sort_order);
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= sorted.length) return;
+
+    const a = sorted[index];
+    const b = sorted[swapIndex];
+
+    // Swap sort_order values
+    await Promise.all([
+      supabase.from("categories").update({ sort_order: b.sort_order }).eq("id", a.id),
+      supabase.from("categories").update({ sort_order: a.sort_order }).eq("id", b.id),
+    ]);
+
+    const updated = categories.map((c) => {
+      if (c.id === a.id) return { ...c, sort_order: b.sort_order };
+      if (c.id === b.id) return { ...c, sort_order: a.sort_order };
+      return c;
+    });
+    onCategoriesChange(updated);
+  }
+
   async function handleDeactivate(id: string) {
     if (!confirm("Opravdu chcete deaktivovat tuto kategorii?")) return;
 
@@ -222,6 +245,41 @@ export default function CategoryManager({
 
     setRules((prev) => prev.filter((r) => r.id !== id));
   }
+
+  async function handleApplyRule(rule: RuleWithCategory) {
+    setApplyingRuleId(rule.id);
+    try {
+      // Fetch all transactions
+      const res = await fetch(`/api/transactions?journal_id=${journalId}&limit=5000`);
+      if (!res.ok) { setApplyingRuleId(null); return; }
+      const transactions = await res.json();
+
+      // Find matching transactions without a category
+      const matching = transactions.filter((tx: Record<string, string | null>) => {
+        const fieldValue = tx[rule.match_field] || "";
+        return fieldValue.toLowerCase().includes(rule.match_value.toLowerCase()) && !tx.category_id;
+      });
+
+      // Update each matching transaction
+      let updated = 0;
+      for (const tx of matching) {
+        const patchRes = await fetch("/api/transactions", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: tx.id, category_id: rule.category_id }),
+        });
+        if (patchRes.ok) updated++;
+      }
+
+      alert(`Pravidlo aplikováno na ${updated} transakcí${updated === 0 ? " (žádné nekategorizované shody)" : ""}`);
+    } catch {
+      alert("Chyba při aplikaci pravidla");
+    }
+    setApplyingRuleId(null);
+  }
+
+  // Sort categories by sort_order
+  const sortedCategories = [...categories].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
     <div className="space-y-6">
@@ -336,11 +394,29 @@ export default function CategoryManager({
           </div>
         ) : (
           <div className="grid gap-3">
-            {categories.map((category) => (
+            {sortedCategories.map((category, idx) => (
               <div
                 key={category.id}
                 className="group flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--card)] p-3"
               >
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    onClick={() => handleMoveCategory(idx, "up")}
+                    disabled={idx === 0}
+                    className="rounded p-0.5 text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] disabled:opacity-20"
+                    title="Posunout nahoru"
+                  >
+                    <ChevronUp className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => handleMoveCategory(idx, "down")}
+                    disabled={idx === sortedCategories.length - 1}
+                    className="rounded p-0.5 text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] disabled:opacity-20"
+                    title="Posunout dolů"
+                  >
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </div>
                 <span
                   className="h-4 w-4 shrink-0 rounded-full"
                   style={{
@@ -370,6 +446,38 @@ export default function CategoryManager({
             ))}
           </div>
         )}
+      </div>
+
+      {/* Default Income Category */}
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 space-y-2">
+        <label className="text-sm font-medium">Výchozí kategorie pro příjmy</label>
+        <p className="text-xs text-[var(--muted-foreground)]">
+          Automaticky se přiřadí novým příjmovým transakcím při importu.
+        </p>
+        <select
+          value={(() => {
+            try { return localStorage.getItem(`default-income-category-${journalId}`) || ""; } catch { return ""; }
+          })()}
+          onChange={(e) => {
+            try {
+              if (e.target.value) {
+                localStorage.setItem(`default-income-category-${journalId}`, e.target.value);
+              } else {
+                localStorage.removeItem(`default-income-category-${journalId}`);
+              }
+            } catch { /* ignore */ }
+            // Force re-render
+            setForm((prev) => ({ ...prev }));
+          }}
+          className="w-full max-w-xs rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+        >
+          <option value="">Žádná (nepřiřazovat)</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Divider */}
@@ -526,7 +634,19 @@ export default function CategoryManager({
                     Smazaná kategorie
                   </span>
                 )}
-                <div className="ml-auto opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="ml-auto flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button
+                    onClick={() => handleApplyRule(rule)}
+                    disabled={applyingRuleId === rule.id}
+                    className="rounded p-1.5 text-[var(--muted-foreground)] hover:bg-emerald-500/10 hover:text-emerald-400 disabled:opacity-50"
+                    title="Aplikovat na existující transakce"
+                  >
+                    {applyingRuleId === rule.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="h-4 w-4" />
+                    )}
+                  </button>
                   <button
                     onClick={() => handleDeleteRule(rule.id)}
                     className="rounded p-1.5 text-[var(--muted-foreground)] hover:bg-red-500/10 hover:text-red-400"
