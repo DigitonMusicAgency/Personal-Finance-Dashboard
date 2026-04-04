@@ -61,10 +61,13 @@ export async function parseAirBankPdf(
 
   const data = await response.json();
 
-  const rawText: string | undefined =
-    data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  // Gemini 2.5 may return multiple parts (thinking + text). Find the text part.
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const rawText: string | undefined = parts
+    .map((p: { text?: string }) => p.text || "")
+    .join("\n");
 
-  if (!rawText) {
+  if (!rawText?.trim()) {
     throw new Error(
       "Gemini API returned an empty or unexpected response structure."
     );
@@ -150,31 +153,24 @@ export async function parseAirBankPdfFromBytes(
 
   const data = await response.json();
 
-  const rawText: string | undefined =
-    data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  // Gemini 2.5 may return multiple parts (thinking + text). Find the text part.
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const rawText: string | undefined = parts
+    .map((p: { text?: string }) => p.text || "")
+    .join("\n");
 
-  if (!rawText) {
+  if (!rawText?.trim()) {
     throw new Error(
       "Gemini API returned an empty or unexpected response structure."
     );
   }
 
-  // Extract JSON array from response — Gemini 2.5 may include thinking blocks,
-  // markdown fencing, or other text around the actual JSON
-  let jsonStr = rawText;
-
-  // Try to find a JSON array between ```json ... ``` fencing
-  const fencedMatch = rawText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/i);
-  if (fencedMatch) {
-    jsonStr = fencedMatch[1];
-  } else {
-    // Try to find the first [ ... ] block in the response
-    const bracketStart = rawText.indexOf("[");
-    const bracketEnd = rawText.lastIndexOf("]");
-    if (bracketStart !== -1 && bracketEnd > bracketStart) {
-      jsonStr = rawText.slice(bracketStart, bracketEnd + 1);
-    }
-  }
+  // Extract JSON array — find first [ and last ] in the response.
+  const bracketStart2 = rawText.indexOf("[");
+  const bracketEnd2 = rawText.lastIndexOf("]");
+  const jsonStr = bracketStart2 !== -1 && bracketEnd2 > bracketStart2
+    ? rawText.slice(bracketStart2, bracketEnd2 + 1)
+    : rawText;
 
   let parsed: GeminiTransaction[];
   try {
