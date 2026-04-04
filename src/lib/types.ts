@@ -28,6 +28,7 @@ export interface Journal {
   name: string;
   type: JournalType;
   counterparty_name: string | null;
+  owner_name: string | null;
   is_archived: boolean;
   sort_order: number;
   created_at: string;

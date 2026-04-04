@@ -13,6 +13,7 @@ interface Props {
 export default function JournalSettings({ journal }: Props) {
   const router = useRouter();
   const [name, setName] = useState(journal.name);
+  const [ownerName, setOwnerName] = useState(journal.owner_name ?? "");
   const [counterpartyName, setCounterpartyName] = useState(
     journal.counterparty_name ?? ""
   );
@@ -28,6 +29,7 @@ export default function JournalSettings({ journal }: Props) {
       .from("journals")
       .update({
         name: name.trim(),
+        owner_name: ownerName.trim() || null,
         counterparty_name: counterpartyName.trim() || null,
       })
       .eq("id", journal.id);
@@ -106,25 +108,39 @@ export default function JournalSettings({ journal }: Props) {
           </label>
           <div className="rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm text-[var(--muted-foreground)]">
             {journal.type === "cashflow"
-              ? "Cashflow / pohledávkový deník"
+              ? "Dlužníček"
               : "Standardní deník"}
             <span className="ml-2 text-xs">(nelze změnit)</span>
           </div>
         </div>
 
         {journal.type === "cashflow" && (
-          <div>
-            <label className="mb-1 block text-sm text-[var(--muted-foreground)]">
-              Protistrana (kdo dluží / komu dlužíte)
-            </label>
-            <input
-              type="text"
-              value={counterpartyName}
-              onChange={(e) => setCounterpartyName(e.target.value)}
-              placeholder="např. Jan Novák"
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-            />
-          </div>
+          <>
+            <div>
+              <label className="mb-1 block text-sm text-[var(--muted-foreground)]">
+                Strana A (vy / vaše firma)
+              </label>
+              <input
+                type="text"
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+                placeholder="např. Miloš"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-[var(--muted-foreground)]">
+                Strana B (protistrana)
+              </label>
+              <input
+                type="text"
+                value={counterpartyName}
+                onChange={(e) => setCounterpartyName(e.target.value)}
+                placeholder="např. Jan Novák"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+              />
+            </div>
+          </>
         )}
 
         <button

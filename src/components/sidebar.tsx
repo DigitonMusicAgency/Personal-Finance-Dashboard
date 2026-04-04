@@ -183,7 +183,7 @@ export default function Sidebar() {
               className="w-full rounded border border-[var(--border)] bg-[var(--input)] px-2 py-1.5 text-sm outline-none focus:border-[var(--primary)]"
             >
               <option value="standard">Standardní</option>
-              <option value="cashflow">Cashflow / pohledávka</option>
+              <option value="cashflow">Dlužníček</option>
             </select>
             <div className="flex gap-1">
               <button

@@ -117,10 +117,13 @@ export default function JournalDashboard({
             <h1 className="text-xl font-bold">{journal.name}</h1>
             <p className="text-sm text-[var(--muted-foreground)]">
               {journal.type === "cashflow"
-                ? "Cashflow / pohledávkový deník"
+                ? "Dlužníček"
                 : "Standardní deník"}
-              {journal.counterparty_name &&
-                ` — ${journal.counterparty_name}`}
+              {journal.type === "cashflow" && journal.owner_name && journal.counterparty_name
+                ? ` — ${journal.owner_name} ↔ ${journal.counterparty_name}`
+                : journal.counterparty_name
+                  ? ` — ${journal.counterparty_name}`
+                  : ""}
             </p>
           </div>
 

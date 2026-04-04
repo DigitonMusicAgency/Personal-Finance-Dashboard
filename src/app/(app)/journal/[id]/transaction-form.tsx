@@ -13,12 +13,12 @@ import { X, Loader2, Trash2 } from "lucide-react";
 
 const CURRENCIES = ["CZK", "EUR", "USD", "GBP", "AUD", "PLN", "CHF"];
 
-const TYPE_OPTIONS: { value: TransactionType; label: string; cashflowOnly?: boolean }[] = [
-  { value: "income", label: "Příjem" },
-  { value: "expense", label: "Výdaj" },
-  { value: "internal_transfer", label: "Interní převod" },
-  { value: "repayment", label: "Splátka", cashflowOnly: true },
-  { value: "manual_adjustment", label: "Ruční úprava", cashflowOnly: true },
+const TYPE_OPTIONS: { value: TransactionType; label: string; cashflowLabel?: string; cashflowOnly?: boolean; standardOnly?: boolean }[] = [
+  { value: "income", label: "Příjem", cashflowLabel: "__B__ → __A__" },
+  { value: "expense", label: "Výdaj", cashflowLabel: "__A__ → __B__" },
+  { value: "internal_transfer", label: "Interní převod", standardOnly: true },
+  { value: "repayment", label: "Splátka", cashflowOnly: true, cashflowLabel: "Splátka" },
+  { value: "manual_adjustment", label: "Ruční úprava", cashflowOnly: true, cashflowLabel: "Ruční úprava" },
 ];
 
 interface Props {
@@ -124,9 +124,25 @@ export default function TransactionForm({
   }, [fetchRate, isEditing]);
 
   // Available types based on journal type
-  const availableTypes = TYPE_OPTIONS.filter(
-    (t) => !t.cashflowOnly || journal.type === "cashflow"
-  );
+  const ownerLabel = journal.owner_name || "Strana A";
+  const counterpartyLabel = journal.counterparty_name || "Strana B";
+
+  const availableTypes = TYPE_OPTIONS
+    .filter((t) => {
+      if (isCashflow) return !t.standardOnly;
+      return !t.cashflowOnly;
+    })
+    .map((t) => {
+      if (isCashflow && t.cashflowLabel) {
+        return {
+          ...t,
+          label: t.cashflowLabel
+            .replace("__A__", ownerLabel)
+            .replace("__B__", counterpartyLabel),
+        };
+      }
+      return t;
+    });
 
   async function handleSave() {
     if (!amount || !date) {

@@ -12,16 +12,17 @@ interface Props {
 }
 
 
-const TYPE_LABELS: Record<string, { label: string; color: string }> = {
-  income: { label: "Příjem", color: "bg-emerald-500/20 text-emerald-400" },
-  expense: { label: "Výdaj", color: "bg-red-500/20 text-red-400" },
-  internal_transfer: { label: "Převod", color: "bg-zinc-500/20 text-zinc-400" },
-  repayment: { label: "Splátka", color: "bg-pink-500/20 text-pink-400" },
-  manual_adjustment: { label: "Úprava", color: "bg-purple-500/20 text-purple-400" },
-};
-
 export default function CashflowOverview({ journal, transactions, onEditTransaction }: Props) {
-  const counterpartyLabel = journal.counterparty_name || "Protistrana";
+  const ownerLabel = journal.owner_name || "Strana A";
+  const counterpartyLabel = journal.counterparty_name || "Strana B";
+
+  const TYPE_LABELS: Record<string, { label: string; color: string }> = {
+    income: { label: `${counterpartyLabel} → ${ownerLabel}`, color: "bg-emerald-500/20 text-emerald-400" },
+    expense: { label: `${ownerLabel} → ${counterpartyLabel}`, color: "bg-red-500/20 text-red-400" },
+    internal_transfer: { label: "Převod", color: "bg-zinc-500/20 text-zinc-400" },
+    repayment: { label: "Splátka", color: "bg-pink-500/20 text-pink-400" },
+    manual_adjustment: { label: "Úprava", color: "bg-purple-500/20 text-purple-400" },
+  };
   const { totalReceived, totalSpent, remaining, progressPercent, sortedWithBalance } =
     useMemo(() => {
       // Card 1: sum of positive amount_czk (income + repayment)
@@ -70,10 +71,10 @@ export default function CashflowOverview({ journal, transactions, onEditTransact
       {/* Two-party balance */}
       <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
         <div className="grid grid-cols-3 gap-4 items-center">
-          {/* Left: You */}
+          {/* Left: Owner (Strana A) */}
           <div className="text-center">
-            <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider mb-1">Vy</p>
-            <p className="text-sm font-medium">Vydáno protistraně</p>
+            <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider mb-1">{ownerLabel}</p>
+            <p className="text-sm font-medium">{ownerLabel} zaplatil(a)</p>
             <p className="text-xl font-bold text-red-400 mt-1">
               {formatAmount(totalSpent)} Kč
             </p>
@@ -87,19 +88,17 @@ export default function CashflowOverview({ journal, transactions, onEditTransact
             </p>
             <p className="text-sm text-[var(--muted-foreground)] mt-2">
               {remaining > 0
-                ? `${counterpartyLabel} vám dluží`
+                ? `${counterpartyLabel} dluží → ${ownerLabel}`
                 : remaining < 0
-                  ? `Dlužíte – ${counterpartyLabel}`
+                  ? `${ownerLabel} dluží → ${counterpartyLabel}`
                   : "Vyrovnáno"}
             </p>
           </div>
 
-          {/* Right: Counterparty */}
+          {/* Right: Counterparty (Strana B) */}
           <div className="text-center">
-            <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider mb-1">
-              {counterpartyLabel}
-            </p>
-            <p className="text-sm font-medium">Přijato od protistrany</p>
+            <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider mb-1">{counterpartyLabel}</p>
+            <p className="text-sm font-medium">{counterpartyLabel} zaplatil(a)</p>
             <p className="text-xl font-bold text-emerald-400 mt-1">
               {formatAmount(totalReceived)} Kč
             </p>
