@@ -48,7 +48,7 @@ export async function parseAirBankPdf(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 65536 },
+      generationConfig: { temperature: 0.1, maxOutputTokens: 65536, thinkingConfig: { thinkingBudget: 0 } },
     }),
   });
 
@@ -140,7 +140,7 @@ export async function parseAirBankPdfFromBytes(
           ],
         },
       ],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 65536 },
+      generationConfig: { temperature: 0.1, maxOutputTokens: 65536, thinkingConfig: { thinkingBudget: 0 } },
     }),
   });
 
