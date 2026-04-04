@@ -9,6 +9,8 @@ export const maxDuration = 60;
 
 /**
  * Detect source type from filename.
+ * DB constraint only allows: airbank_pdf, wise_csv, wise_pdf
+ * All bank PDFs use the same Gemini parser, so map them to airbank_pdf.
  */
 function detectSourceType(
   fileName: string,
@@ -16,17 +18,11 @@ function detectSourceType(
 ): string {
   if (ext === "pdf") {
     const lower = fileName.toLowerCase();
-    if (lower.includes("airbank") || lower.includes("air bank") || lower.includes("air_")) {
-      return "airbank_pdf";
-    }
-    if (lower.includes("fio")) {
-      return "fio_pdf";
-    }
     if (lower.includes("wise")) {
       return "wise_pdf";
     }
-    // Default: generic bank PDF (all go through Gemini)
-    return "bank_pdf";
+    // All other PDFs (Air Bank, Fio, etc.) use the same Gemini parser
+    return "airbank_pdf";
   }
   return "wise_csv";
 }
