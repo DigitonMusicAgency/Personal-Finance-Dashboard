@@ -55,6 +55,7 @@ export default function CategoryManager({
   });
   const [ruleLoading, setRuleLoading] = useState(false);
   const [applyingRuleId, setApplyingRuleId] = useState<string | null>(null);
+  const [applyingDefault, setApplyingDefault] = useState(false);
 
   const supabase = createClient();
 
@@ -158,25 +159,29 @@ export default function CategoryManager({
   }
 
   async function handleMoveCategory(index: number, direction: "up" | "down") {
-    const sorted = [...categories].sort((a, b) => a.sort_order - b.sort_order);
+    const sorted = [...categories].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
     const swapIndex = direction === "up" ? index - 1 : index + 1;
     if (swapIndex < 0 || swapIndex >= sorted.length) return;
 
-    const a = sorted[index];
-    const b = sorted[swapIndex];
+    // Normalize: assign sequential sort_order to all categories first
+    // This fixes issues when multiple categories share the same sort_order
+    const normalized = sorted.map((c, i) => ({ ...c, sort_order: i }));
 
-    // Swap sort_order values
-    await Promise.all([
-      supabase.from("categories").update({ sort_order: b.sort_order }).eq("id", a.id),
-      supabase.from("categories").update({ sort_order: a.sort_order }).eq("id", b.id),
-    ]);
+    // Now swap
+    const newOrder = [...normalized];
+    [newOrder[index], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[index]];
 
-    const updated = categories.map((c) => {
-      if (c.id === a.id) return { ...c, sort_order: b.sort_order };
-      if (c.id === b.id) return { ...c, sort_order: a.sort_order };
-      return c;
-    });
-    onCategoriesChange(updated);
+    // Reassign sequential sort_order after swap
+    const final = newOrder.map((c, i) => ({ ...c, sort_order: i }));
+
+    // Update all changed sort_orders in DB
+    await Promise.all(
+      final.map((c) =>
+        supabase.from("categories").update({ sort_order: c.sort_order }).eq("id", c.id)
+      )
+    );
+
+    onCategoriesChange(final);
   }
 
   async function handleDeactivate(id: string) {
@@ -454,30 +459,65 @@ export default function CategoryManager({
         <p className="text-xs text-[var(--muted-foreground)]">
           Automaticky se přiřadí novým příjmovým transakcím při importu.
         </p>
-        <select
-          value={(() => {
-            try { return localStorage.getItem(`default-income-category-${journalId}`) || ""; } catch { return ""; }
-          })()}
-          onChange={(e) => {
-            try {
-              if (e.target.value) {
-                localStorage.setItem(`default-income-category-${journalId}`, e.target.value);
-              } else {
-                localStorage.removeItem(`default-income-category-${journalId}`);
-              }
-            } catch { /* ignore */ }
-            // Force re-render
-            setForm((prev) => ({ ...prev }));
-          }}
-          className="w-full max-w-xs rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-        >
-          <option value="">Žádná (nepřiřazovat)</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={(() => {
+              try { return localStorage.getItem(`default-income-category-${journalId}`) || ""; } catch { return ""; }
+            })()}
+            onChange={(e) => {
+              try {
+                if (e.target.value) {
+                  localStorage.setItem(`default-income-category-${journalId}`, e.target.value);
+                } else {
+                  localStorage.removeItem(`default-income-category-${journalId}`);
+                }
+              } catch { /* ignore */ }
+              // Force re-render
+              setForm((prev) => ({ ...prev }));
+            }}
+            className="w-full max-w-xs rounded-lg border border-[var(--border)] bg-[var(--input)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+          >
+            <option value="">Žádná (nepřiřazovat)</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={async () => {
+              let catId: string | null = null;
+              try { catId = localStorage.getItem(`default-income-category-${journalId}`); } catch { /* */ }
+              if (!catId) { alert("Nejprve vyberte výchozí kategorii"); return; }
+              setApplyingDefault(true);
+              try {
+                const res = await fetch(`/api/transactions?journal_id=${journalId}&limit=5000`);
+                if (!res.ok) { setApplyingDefault(false); return; }
+                const txs = await res.json();
+                const matching = txs.filter((tx: Record<string, string | null>) =>
+                  tx.type === "income" && !tx.category_id
+                );
+                let updated = 0;
+                for (const tx of matching) {
+                  const patchRes = await fetch("/api/transactions", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: tx.id, category_id: catId }),
+                  });
+                  if (patchRes.ok) updated++;
+                }
+                alert(`Kategorie přiřazena ${updated} příjmovým transakcím${updated === 0 ? " (žádné nekategorizované příjmy)" : ""}`);
+              } catch { alert("Chyba při aplikaci kategorie"); }
+              setApplyingDefault(false);
+            }}
+            disabled={applyingDefault}
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] disabled:opacity-50"
+            title="Aplikovat na existující nekategorizované příjmy"
+          >
+            {applyingDefault ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            Aplikovat
+          </button>
+        </div>
       </div>
 
       {/* Divider */}
